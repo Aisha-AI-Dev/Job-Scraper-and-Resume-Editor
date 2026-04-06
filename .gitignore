@@ -7,3 +7,5 @@ prompts/
 JDs/
 experiments and notes/
 logs/
+.obsidian/
+.gitignore/

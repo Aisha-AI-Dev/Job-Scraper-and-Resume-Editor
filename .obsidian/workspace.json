@@ -1,0 +1,241 @@
+{
+  "main": {
+    "id": "d80a35a5816386e0",
+    "type": "split",
+    "children": [
+      {
+        "id": "6daceacaf87d19b8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "11d01cf93c3e7c1b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Implementation Plan.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Implementation Plan"
+            }
+          },
+          {
+            "id": "d01be9f784b540c5",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Implementation Plan.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Implementation Plan"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "9a945502a688abcb",
+    "type": "split",
+    "children": [
+      {
+        "id": "ebec511dc0240643",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "09ab6d4cfc21c985",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "c8013555d37cda68",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "e76cf7c50fbf78d7",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "b3870e833beeba37",
+    "type": "split",
+    "children": [
+      {
+        "id": "a0b3a71d3f3a17b8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "39fac9538c777738",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Before we start.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Before we start"
+            }
+          },
+          {
+            "id": "0d927cd823452cb3",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Before we start.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Before we start"
+            }
+          },
+          {
+            "id": "85058629039125a7",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "d10f446685f02ead",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "40a0c623367074a1",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Before we start.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Before we start"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "d01be9f784b540c5",
+  "lastOpenFiles": [
+    "data/seen_ids.txt",
+    "data/blacklisted_2026-04-05.csv",
+    "data/raw_jobs_2026-04-05.csv",
+    "logs/scraper_2026-04-05.log",
+    "logs/2026-04-05.log",
+    "tracker/__pycache__/push_to_notion.cpython-313.pyc",
+    "tracker/__pycache__",
+    "logs/scorer_2026-04-04.log",
+    "scorer/__pycache__/score_jobs.cpython-313.pyc",
+    "scorer/__pycache__",
+    "logs/scraper_2026-04-04.log",
+    "myenv/lib/python3.13/site-packages/~umpy/random/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/~umpy-2.4.4.dist-info/licenses/numpy/random/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/soupsieve-2.8.3.dist-info/licenses/LICENSE.md",
+    "experiments/Evaluation before implementation.md",
+    "Implementation Plan.md",
+    "README.md",
+    "myenv/lib/python3.13/site-packages/anthropic/lib/foundry.md",
+    "myenv/lib/python3.13/site-packages/httpx-0.28.1.dist-info/licenses/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/httpcore-1.0.9.dist-info/licenses/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/docstring_parser-0.17.0.dist-info/licenses/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/idna-3.11.dist-info/licenses/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/numpy-2.4.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/numpy-2.4.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/numpy-2.4.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/numpy-2.4.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/numpy-2.4.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+    "myenv/lib/python3.13/site-packages/numpy-2.4.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+    "Pasted image 20260401140931.png"
+  ]
+}

@@ -244,6 +244,9 @@ def fetch_existing_urls(client: Client, database_id: str) -> set:
     """
     Query all existing pages in the Notion DB and return a set of
     job_url values already present. Uses pagination to handle large DBs.
+
+    Compatible with notion-client 3.x which removed databases.query()
+    in favour of the raw request() method.
     """
     existing_urls = set()
     url_prop = PROPERTY_MAP["job_url"]
@@ -252,18 +255,21 @@ def fetch_existing_urls(client: Client, database_id: str) -> set:
     cursor = None
 
     while True:
-        kwargs = {
-            "database_id": database_id,
-            "page_size": 100,
-            "filter_properties": [url_prop],
-        }
-        if cursor:
-            kwargs["start_cursor"] = cursor
-
         try:
-            response = client.databases.query(**kwargs)
+            body = {"page_size": 100}
+            if cursor:
+                body["start_cursor"] = cursor
+
+            response = client.request(
+                path=f"databases/{database_id}/query",
+                method="POST",
+                body=body,
+            )
         except APIResponseError as e:
-            log.error(f"Failed to query Notion DB: {e}")
+            log.error(f"Failed to query Notion DB: {str(e)}")
+            break
+        except Exception as e:
+            log.error(f"Failed to query Notion DB: {str(e)}")
             break
 
         for page in response.get("results", []):
@@ -298,17 +304,21 @@ def create_page_with_retry(
     """
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            client.pages.create(**page_body)
+            client.request(
+                path="pages",
+                method="POST",
+                body=page_body,
+            )
             return True
         except APIResponseError as e:
             # 409 = conflict (rare with Notion), 400 = bad request (don't retry)
             if e.status in (400, 409):
-                log.error(f"  [{job_label}] Permanent error ({e.status}): {e.message}")
+                log.error(f"  [{job_label}] Permanent error ({e.status}): {str(e)}")
                 return False
             delay = RETRY_DELAY * (2 ** (attempt - 1))
             log.warning(
                 f"  [{job_label}] Attempt {attempt}/{MAX_RETRIES} failed "
-                f"({e.status}): {e.message}. Retrying in {delay:.0f}s..."
+                f"({e.status}): {str(e)}. Retrying in {delay:.0f}s..."
             )
             time.sleep(delay)
         except Exception as e:

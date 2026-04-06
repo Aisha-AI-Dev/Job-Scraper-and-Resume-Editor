@@ -191,17 +191,20 @@ def find_notion_page_by_company_role(
     Returns the first match or None.
     """
     log.info(f"Searching Notion for: {role} @ {company}...")
-    response = notion.databases.query(
-        database_id=database_id,
-        filter={
-            "and": [
-                {
-                    "property": PROP["company"],
-                    "rich_text": {"contains": company},
-                },
-            ]
-        },
-        page_size=20,
+    response = notion.request(
+        path=f"databases/{database_id}/query",
+        method="POST",
+        body={
+            "filter": {
+                "and": [
+                    {
+                        "property": PROP["company"],
+                        "rich_text": {"contains": company},
+                    },
+                ]
+            },
+            "page_size": 20,
+        }
     )
     results = response.get("results", [])
     role_lower = role.lower()
@@ -433,18 +436,21 @@ def update_notion_page(
     """
     log.info(f"Updating Notion page {page_id}...")
     try:
-        notion.pages.update(
-            page_id=page_id,
-            properties={
-                PROP["status"]: {
-                    "select": {"name": "Reviewing"}
-                },
-                PROP["resume_version"]: {
-                    "rich_text": [{
-                        "type": "text",
-                        "text": {"content": resume_filename[:500]}
-                    }]
-                },
+        notion.request(
+            path=f"pages/{page_id}",
+            method="PATCH",
+            body={
+                "properties": {
+                    PROP["status"]: {
+                        "select": {"name": "Reviewing"}
+                    },
+                    PROP["resume_version"]: {
+                        "rich_text": [{
+                            "type": "text",
+                            "text": {"content": resume_filename[:500]}
+                        }]
+                    },
+                }
             }
         )
         log.info("Notion page updated: status=Reviewing, resume_version set")

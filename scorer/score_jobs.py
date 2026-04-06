@@ -73,7 +73,7 @@ log = logging.getLogger(__name__)
 # CONFIG
 # ----------------------------------------------------------------
 MODEL            = "claude-haiku-4-5-20251001"
-MAX_TOKENS       = 1024        # scoring output is compact JSON, 600-800 tokens typical
+MAX_TOKENS       = 1500        # scoring output is compact JSON, 600-800 tokens typical
 MAX_RETRIES      = 3           # for the priming call and JSON repair
 RETRY_BASE_DELAY = 2.0         # seconds, doubles on each retry
 BATCH_POLL_INTERVAL = 30       # seconds between batch status checks

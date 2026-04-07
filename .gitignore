@@ -8,3 +8,6 @@ JDs/
 experiments and notes/
 logs/
 .obsidian/
+__pycache__/
+*.pyc
+resume_template.docx

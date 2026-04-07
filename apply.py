@@ -3,33 +3,37 @@ apply.py
 --------
 One-command trigger for the full application workflow.
 
-Given a Notion page URL (or --company + --role directly), this script:
-  1. Pulls job details from the Notion page  (or uses CLI args)
-  2. Finds the JD description from the raw_jobs CSV via _key
-     Falls back to fetching the job URL directly if CSV lookup fails
-  3. Runs the tailoring call (Claude Sonnet)  → draft .txt
-  4. Runs the resume injector                → tailored .docx
-  5. Updates the Notion page: status → Reviewing, resume_version → filename
-  6. Opens the .docx for your review
+SINGLE APPLICATION:
+  # From Notion URL (scraped job):
+  python apply.py --notion "https://www.notion.so/..."
 
-Usage:
-  # From a Notion page URL (copy from browser):
-  python apply.py --notion "https://www.notion.so/PageTitle-abc123def456..."
-
-  # From company + role directly (Notion page looked up by matching):
+  # From company + role (looks up Notion automatically):
   python apply.py --company "Qualcomm" --role "ML Engineer Tools"
 
-  # With location override (default is relocate):
+  # External JD from file (not from scraper):
+  python apply.py --company "Google" --role "ML Engineer" --jd path/to/jd.txt
+
+  # External JD — paste interactively:
+  python apply.py --company "Google" --role "ML Engineer"
+  (if JD not found in CSV, it will prompt you to paste)
+
+  # Location override (default: relocate):
   python apply.py --notion "https://..." --location cleveland
 
-  # Skip cover letter (tailoring only):
-  python apply.py --notion "https://..." --tailor-only
+BATCH MODE (Notion-based):
+  # Process all 'yes' rows with status 'New' automatically:
+  python apply.py --batch
 
-  # Skip Notion update (dry run the workflow):
-  python apply.py --notion "https://..." --no-notion-update
+  # Batch with limit (do first 10 only):
+  python apply.py --batch --limit 10
 
-  # Don't open the docx automatically:
-  python apply.py --notion "https://..." --no-open
+  # Batch but don't open each docx (review later):
+  python apply.py --batch --no-open
+
+OTHER OPTIONS:
+  --tailor-only        Tailor only, skip resume injection
+  --no-notion-update   Don't update Notion page status
+  --no-open            Don't open the .docx automatically
 """
 
 import os
@@ -53,9 +57,13 @@ load_dotenv()
 # PATHS
 # ----------------------------------------------------------------
 BASE_DIR    = Path(__file__).resolve().parent
-DATA_DIR    = BASE_DIR / "data"
-LOGS_DIR    = BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
+# DATA_DIR    = BASE_DIR / "data"
+# LOGS_DIR    = BASE_DIR / "logs"
+# LOGS_DIR.mkdir(exist_ok=True)
+
+import sys; sys.path.insert(0, str(BASE_DIR))
+from paths import RAW_DIR, LOGS_DIR, latest_raw_jobs
+DATA_DIR = BASE_DIR / "data"
 
 today_str = date.today().isoformat()
 
@@ -236,10 +244,14 @@ def find_jd_in_csv(job_url: str, company: str, role: str) -> str | None:
     Matches by job_url (most reliable) or company + title fuzzy match.
     Loads only needed columns to avoid memory pressure.
     """
-    csv_files = sorted(
-        DATA_DIR.glob("raw_jobs_*.csv"),
-        reverse=True   # newest first
-    )
+    # csv_files = sorted(
+    #     DATA_DIR.glob("raw_jobs_*.csv"),
+    #     reverse=True   # newest first
+    # )
+
+    csv_files = sorted(RAW_DIR.glob("raw_jobs_*.csv"), reverse=True)
+    if not csv_files:  # backward compat
+        csv_files = sorted(DATA_DIR.glob("raw_jobs_*.csv"), reverse=True)
 
     if not csv_files:
         log.warning("No raw_jobs CSV files found in data/")
@@ -286,7 +298,47 @@ def find_jd_in_csv(job_url: str, company: str, role: str) -> str | None:
     return None
 
 
-def fetch_jd_from_url(job_url: str) -> str | None:
+def paste_jd_interactively(company: str, role: str) -> str | None:
+    """
+    Prompt the user to paste a JD directly into the terminal.
+    Type END on its own line to finish.
+    """
+    print()
+    print("=" * 60)
+    print(f"JD not found in CSV for: {role} @ {company}")
+    print("Paste the job description below.")
+    print("When done, type END on a new line and press Enter.")
+    print("=" * 60)
+    lines = []
+    try:
+        while True:
+            line = input()
+            if line.strip().upper() == "END":
+                break
+            lines.append(line)
+    except (EOFError, KeyboardInterrupt):
+        pass
+    text = "\n".join(lines).strip()
+    if not text:
+        log.warning("No JD text entered")
+        return None
+    log.info(f"JD received ({len(text):,} chars from paste)")
+    return text
+
+
+def load_jd_from_file(jd_path: Path) -> str | None:
+    """Load JD text from a file."""
+    if not jd_path.exists():
+        log.error(f"JD file not found: {jd_path}")
+        return None
+    text = jd_path.read_text(encoding="utf-8").strip()
+    if not text:
+        log.error(f"JD file is empty: {jd_path}")
+        return None
+    log.info(f"JD loaded from file ({len(text):,} chars): {jd_path.name}")
+    return text
+
+
     """
     Fallback: fetch JD text directly from the job URL.
     Uses a simple requests call — works for most job boards.
@@ -459,6 +511,177 @@ def update_notion_page(
         log.warning("Resume was generated successfully — update Notion manually")
 
 # ----------------------------------------------------------------
+# BATCH MODE — process all 'yes' + 'New' rows from Notion
+# ----------------------------------------------------------------
+
+def run_batch(
+    notion: NotionClient,
+    database_id: str,
+    location_key: str,
+    jd_path: Path | None,
+    tailor_only: bool,
+    no_notion_update: bool,
+    no_open: bool,
+    limit: int | None,
+) -> None:
+    """
+    Query Notion for all pages where 'Queue for apply' checkbox is ticked.
+    Runs tailor → inject → Notion update for each, then unticks the checkbox.
+    """
+    if not database_id:
+        log.error("NOTION_DATABASE_ID not set — cannot run batch mode")
+        sys.exit(1)
+
+    log.info("Batch mode: fetching queued jobs from Notion...")
+    try:
+        response = notion.request(
+            path=f"databases/{database_id}/query",
+            method="POST",
+            body={
+                "filter": {
+                    "property": "Queue for apply",
+                    "checkbox": {"equals": True},
+                },
+                "sorts": [
+                    {"property": PROP["fit_score"], "direction": "descending"}
+                ],
+                "page_size": 100,
+            }
+        )
+    except Exception as e:
+        log.error(f"Failed to query Notion: {e}")
+        sys.exit(1)
+
+    pages = response.get("results", [])
+    if not pages:
+        log.info("No jobs queued in Notion. Tick 'Queue for apply' on the rows you want.")
+        return
+
+    if limit:
+        pages = pages[:limit]
+
+    log.info(f"Found {len(pages)} job(s) queued — starting...")
+    log.info("=" * 60)
+
+    succeeded = []
+    failed    = []
+
+    for i, page in enumerate(pages, 1):
+        props   = page.get("properties", {})
+        company = get_text(props.get(PROP["company"], {}))
+        role    = get_text(props.get(PROP["role"], {}))
+        page_id = page["id"]
+        job_url = get_text(props.get(PROP["job_url"], {}))
+
+        log.info(f"[{i}/{len(pages)}] {role} @ {company}")
+
+        job_info = {
+            "page_id": page_id,
+            "company": company,
+            "role":    role,
+            "job_url": job_url,
+        }
+
+        result = _apply_single(
+            notion=notion,
+            company=company,
+            role=role,
+            page_id=page_id,
+            job_info=job_info,
+            jd_path=jd_path,
+            location_key=location_key,
+            tailor_only=tailor_only,
+            no_notion_update=no_notion_update,
+            no_open=no_open,
+            batch_mode=True,
+        )
+
+        if result:
+            succeeded.append(f"{role} @ {company}")
+            # Untick the checkbox so it won't be picked up again
+            if not no_notion_update:
+                try:
+                    notion.request(
+                        path=f"pages/{page_id}",
+                        method="PATCH",
+                        body={
+                            "properties": {
+                                "Queue for apply": {"checkbox": False}
+                            }
+                        }
+                    )
+                except Exception as e:
+                    log.warning(f"  Could not untick checkbox for {company}: {e}")
+        else:
+            failed.append(f"{role} @ {company}")
+
+        if i < len(pages):
+            time.sleep(2)
+
+    log.info("=" * 60)
+    log.info(f"BATCH COMPLETE: {len(succeeded)} succeeded | {len(failed)} failed")
+    for s in succeeded:
+        log.info(f"  ✓ {s}")
+    for f in failed:
+        log.info(f"  ✗ {f}")
+    log.info("=" * 60)
+
+
+def _apply_single(
+    notion, company, role, page_id, job_info,
+    jd_path, location_key, tailor_only,
+    no_notion_update, no_open, batch_mode=False,
+) -> Path | None:
+    """Core single-application logic, shared by single and batch modes."""
+
+    # JD resolution
+    jd_text = None
+    if jd_path and jd_path.exists():
+        jd_text = load_jd_from_file(jd_path)
+    if not jd_text:
+        job_url = job_info.get("job_url", "")
+        jd_text = find_jd_in_csv(job_url, company, role)
+    if not jd_text:
+        job_url = job_info.get("job_url", "")
+        if job_url:
+            jd_text = fetch_jd_from_url(job_url)
+    if not jd_text and not batch_mode:
+        jd_text = paste_jd_interactively(company, role)
+    if not jd_text:
+        log.error(f"  Could not retrieve JD for {role} @ {company} — skipping")
+        return None
+
+    log.info(f"  JD: {len(jd_text):,} chars")
+
+    # Tailor
+    draft_path = run_tailoring(
+        company=company, role=role, jd_text=jd_text,
+        location_key=location_key, tailor_only=tailor_only, no_open=True,
+    )
+    if not draft_path:
+        log.error(f"  Tailoring failed for {role} @ {company}")
+        return None
+
+    if tailor_only:
+        return draft_path
+
+    # Inject
+    docx_path = run_injection(
+        draft_path=draft_path, company=company, role=role,
+        location_key=location_key, no_open=no_open,
+    )
+    if not docx_path:
+        log.error(f"  Injection failed for {role} @ {company}")
+        return None
+
+    # Update Notion
+    if page_id and not no_notion_update:
+        update_notion_page(notion, page_id, docx_path.name)
+
+    return docx_path
+
+
+# ----------------------------------------------------------------
 # MAIN
 # ----------------------------------------------------------------
 
@@ -467,9 +690,12 @@ def main(
     company:          str | None,
     role:             str | None,
     location_key:     str = "relocate",
+    jd_path:          Path | None = None,
     tailor_only:      bool = False,
     no_notion_update: bool = False,
     no_open:          bool = False,
+    batch_mode:       bool = False,
+    batch_limit:      int | None = None,
 ) -> None:
 
     log.info("=" * 60)
@@ -483,6 +709,13 @@ def main(
         log.error("NOTION_TOKEN not set in .env")
         sys.exit(1)
     notion = NotionClient(auth=notion_token)
+
+    # ── Batch mode ───────────────────────────────────────────────
+    if batch_mode:
+        run_batch(notion, database_id, location_key,
+                  jd_path, tailor_only, no_notion_update,
+                  no_open, batch_limit)
+        return
 
     # ── Step 1: Resolve job details ──────────────────────────────
     page_id  = None
@@ -517,71 +750,32 @@ def main(
         log.error("Could not determine company or role")
         sys.exit(1)
 
-    # ── Step 2: Get JD text ───────────────────────────────────────
-    job_url = job_info.get("job_url", "")
-    log.info("Looking up JD in raw_jobs CSV...")
-    jd_text = find_jd_in_csv(job_url, company, role)
-
-    if not jd_text:
-        log.warning("JD not found in CSV — trying live URL fetch...")
-        jd_text = fetch_jd_from_url(job_url)
-
-    if not jd_text:
-        log.error(
-            "Could not retrieve JD text from CSV or URL.\n"
-            "You can paste the JD manually:\n"
-            f"  python tailor/tailor_resume.py --company '{company}' --role '{role}'"
-        )
-        sys.exit(1)
-
-    log.info(f"JD retrieved ({len(jd_text):,} chars)")
-
-    # ── Step 3: Tailor ────────────────────────────────────────────
-    draft_path = run_tailoring(
+    docx_path = _apply_single(
+        notion=notion,
         company=company,
         role=role,
-        jd_text=jd_text,
+        page_id=page_id,
+        job_info=job_info,
+        jd_path=jd_path,
         location_key=location_key,
         tailor_only=tailor_only,
-        no_open=True,
-    )
-
-    if not draft_path:
-        log.error("Tailoring failed — aborting")
-        sys.exit(1)
-
-    # ── Step 4: Inject ────────────────────────────────────────────
-    docx_path = run_injection(
-        draft_path=draft_path,
-        company=company,
-        role=role,
-        location_key=location_key,
+        no_notion_update=no_notion_update,
         no_open=no_open,
+        batch_mode=False,
     )
 
     if not docx_path:
-        log.error("Injection failed — check logs")
         sys.exit(1)
 
-    # ── Step 5: Update Notion ─────────────────────────────────────
-    if page_id and not no_notion_update:
-        update_notion_page(notion, page_id, docx_path.name)
-    elif no_notion_update:
-        log.info("Notion update skipped (--no-notion-update)")
-    else:
-        log.info("No Notion page ID — skipping update")
-
-    # ── Summary ───────────────────────────────────────────────────
     log.info("=" * 60)
     log.info("DONE")
-    log.info(f"  Draft:   {draft_path}")
-    log.info(f"  Resume:  {docx_path}")
+    log.info(f"  Resume: {docx_path}")
     if page_id and not no_notion_update:
-        log.info(f"  Notion:  {page_id} → Reviewing")
+        log.info(f"  Notion: → Reviewing")
     log.info("")
     log.info("  Review checklist:")
     log.info("  1. Check every bullet for accuracy")
-    log.info("  2. Personalise cover letter hook if you know the hiring manager")
+    log.info("  2. Personalise cover letter hook if relevant")
     log.info("  3. Save as PDF before submitting")
     log.info("  4. Update Notion: date_applied + follow_up_date after submitting")
     log.info("=" * 60)
@@ -593,38 +787,44 @@ def main(
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(
-        description="One-command application workflow: Notion → tailor → inject → review",
+        description="One-command application workflow: tailor → inject → Notion",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # From Notion URL:
-  python apply.py --notion "https://notion.so/workspace/Title-abc123..."
+  # Scraped job from Notion URL:
+  python apply.py --notion "https://notion.so/..."
 
-  # From CLI args:
-  python apply.py --company "Qualcomm" --role "ML Engineer Tools"
+  # External JD from file:
+  python apply.py --company "Google" --role "ML Engineer" --jd jobs/google.txt
 
-  # With location override:
-  python apply.py --notion "https://..." --location cleveland
+  # External JD — paste interactively:
+  python apply.py --company "Google" --role "ML Engineer"
 
-  # Tailoring only (no docx injection):
-  python apply.py --notion "https://..." --tailor-only
+  # Batch — process all yes+New rows from Notion:
+  python apply.py --batch
 
-  # Skip Notion status update:
-  python apply.py --notion "https://..." --no-notion-update
+  # Batch with limit:
+  python apply.py --batch --limit 10 --no-open
         """,
     )
-    ap.add_argument("--notion",            type=str, default=None,
+    ap.add_argument("--notion",           type=str,  default=None,
                     help="Notion page URL or page ID")
-    ap.add_argument("--company",           type=str, default=None)
-    ap.add_argument("--role",              type=str, default=None)
-    ap.add_argument("--location",          type=str, default="relocate",
+    ap.add_argument("--company",          type=str,  default=None)
+    ap.add_argument("--role",             type=str,  default=None)
+    ap.add_argument("--jd",              type=Path,  default=None,
+                    help="Path to a JD .txt file (for external roles not in scraper)")
+    ap.add_argument("--location",         type=str,  default="relocate",
                     help="Location key (default: relocate)")
-    ap.add_argument("--tailor-only",       action="store_true",
+    ap.add_argument("--batch",            action="store_true",
+                    help="Batch mode: process all yes+New Notion rows automatically")
+    ap.add_argument("--limit",            type=int,  default=None,
+                    help="Max number of roles to process in batch mode")
+    ap.add_argument("--tailor-only",      action="store_true",
                     help="Run tailoring only, skip resume injection")
-    ap.add_argument("--no-notion-update",  action="store_true",
+    ap.add_argument("--no-notion-update", action="store_true",
                     help="Don't update Notion page status")
-    ap.add_argument("--no-open",           action="store_true",
-                    help="Don't open the output .docx automatically")
+    ap.add_argument("--no-open",          action="store_true",
+                    help="Don't open the .docx automatically")
 
     args = ap.parse_args()
     main(
@@ -632,7 +832,10 @@ Examples:
         company=args.company,
         role=args.role,
         location_key=args.location,
+        jd_path=args.jd,
         tailor_only=args.tailor_only,
         no_notion_update=args.no_notion_update,
         no_open=args.no_open,
+        batch_mode=args.batch,
+        batch_limit=args.limit,
     )

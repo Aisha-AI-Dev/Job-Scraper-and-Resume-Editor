@@ -44,10 +44,14 @@ load_dotenv()
 # PATHS
 # ----------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+# DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
-DATA_DIR.mkdir(exist_ok=True)
+# DATA_DIR.mkdir(exist_ok=True)
+
+import sys; sys.path.insert(0, str(BASE_DIR))
+from paths import RAW_DIR, SCORED_DIR, LOGS_DIR, raw_jobs_path, scored_jobs_path
+DATA_DIR = BASE_DIR / "data"
 
 # ----------------------------------------------------------------
 # LOGGING — shared log file for the full pipeline run
@@ -171,11 +175,13 @@ def run_scrape(dry_run: bool) -> Path | None:
     if dry_run:
         log.info("DRY RUN — skipping actual scrape. No JobSpy calls made.")
         # Return path that would exist if scrape had run
-        return DATA_DIR / f"raw_jobs_{today_str}.csv"
+        # return DATA_DIR / f"raw_jobs_{today_str}.csv"
+        return raw_jobs_path(today_str)
 
     scraper.main()
 
-    output_path = DATA_DIR / f"raw_jobs_{today_str}.csv"
+    # output_path = DATA_DIR / f"raw_jobs_{today_str}.csv"
+    output_path = raw_jobs_path(today_str)
     if not output_path.exists():
         log.warning("Scraper ran but no output CSV found. Possibly zero new jobs.")
         return None
@@ -197,7 +203,8 @@ def run_score(raw_csv: Path | None, dry_run: bool) -> Path | None:
     scorer_path = BASE_DIR / "scorer" / "score_jobs.py"
     scorer = load_module("score_jobs", scorer_path)
 
-    scored_path = DATA_DIR / f"scored_jobs_{today_str}.csv"
+    # scored_path = DATA_DIR / f"scored_jobs_{today_str}.csv"
+    scored_path = scored_jobs_path(today_str)
 
     if raw_csv is None or not raw_csv.exists():
         log.warning("No raw jobs CSV to score. Skipping scoring step.")
@@ -355,7 +362,9 @@ def main(
     if skip_scrape:
         log.info("STEP: Scrape — SKIPPED (--skip-scrape)")
         # Look for existing raw CSV from today
-        raw_csv = DATA_DIR / f"raw_jobs_{today_str}.csv"
+        # raw_csv = DATA_DIR / f"raw_jobs_{today_str}.csv"
+        raw_csv = raw_jobs_path(today_str)
+
         if raw_csv.exists():
             log.info(f"Using existing raw CSV: {raw_csv}")
         else:
@@ -375,7 +384,9 @@ def main(
     # ── STEP 2: SCORE ────────────────────────────────────────────
     if skip_score:
         log.info("STEP: Score — SKIPPED (--skip-score)")
-        scored_csv = DATA_DIR / f"scored_jobs_{today_str}.csv"
+        # scored_csv = DATA_DIR / f"scored_jobs_{today_str}.csv"
+        scored_csv = scored_jobs_path(today_str)
+        
         if scored_csv.exists():
             log.info(f"Using existing scored CSV: {scored_csv}")
         else:

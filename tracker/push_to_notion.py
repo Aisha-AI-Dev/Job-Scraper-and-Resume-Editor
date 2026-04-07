@@ -45,10 +45,15 @@ load_dotenv()
 # ----------------------------------------------------------------
 # PATHS
 # ----------------------------------------------------------------
+# BASE_DIR  = Path(__file__).resolve().parent.parent
+# DATA_DIR  = BASE_DIR / "data"
+# LOGS_DIR  = BASE_DIR / "logs"
+# LOGS_DIR.mkdir(exist_ok=True)
+
 BASE_DIR  = Path(__file__).resolve().parent.parent
+import sys; sys.path.insert(0, str(BASE_DIR))
+from paths import LOGS_DIR, scored_jobs_path, latest_raw_jobs
 DATA_DIR  = BASE_DIR / "data"
-LOGS_DIR  = BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
 
 # ----------------------------------------------------------------
 # LOGGING
@@ -223,6 +228,7 @@ def build_properties(row: pd.Series) -> dict:
         pm["date_applied"]:   prop_date(""),
         pm["follow_up_date"]: prop_date(""),
         pm["resume_version"]: prop_text(""),   # fill in when you apply
+        pm["description"]: prop_text(str(row.get("description", ""))[:2000]),
     }
 
     return props
@@ -351,7 +357,10 @@ def main(
     # 1. Resolve input file
     if input_path is None:
         date_str   = target_date or today_str
-        input_path = DATA_DIR / f"scored_jobs_{date_str}.csv"
+        # input_path = DATA_DIR / f"scored_jobs_{date_str}.csv"
+        input_path = scored_jobs_path(date_str)
+        if not input_path.exists():
+            input_path = scored_jobs_path(date_str)  # backward compat
 
     if not input_path.exists():
         log.error(f"Input file not found: {input_path}")
@@ -360,6 +369,20 @@ def main(
 
     # 2. Load scored jobs
     df = pd.read_csv(input_path, dtype=str)
+    # Join descriptions from raw_jobs (scorer strips them out)
+    if "description" not in df.columns or df["description"].isna().all():
+        raw_path = latest_raw_jobs()
+        if raw_path and raw_path.exists():
+            log.info(f"Loading descriptions from {raw_path.name}...")
+            df_raw = pd.read_csv(raw_path, usecols=["job_url", "description"], dtype=str)
+            df = df.merge(df_raw, on="job_url", how="left", suffixes=("", "_raw"))
+            if "description_raw" in df.columns:
+                df["description"] = df["description_raw"].fillna("")
+                df.drop(columns=["description_raw"], inplace=True)
+            log.info("Descriptions joined")
+        else:
+            log.warning("No raw_jobs CSV found — descriptions will be empty")
+            
     log.info(f"Loaded {len(df):,} scored jobs from {input_path}")
 
     # 3. Filter by score threshold

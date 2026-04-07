@@ -35,13 +35,18 @@ load_dotenv()
 # ----------------------------------------------------------------
 # PATHS
 # ----------------------------------------------------------------
-BASE_DIR   = Path(__file__).resolve().parent.parent
-DATA_DIR   = BASE_DIR / "data"
-LOGS_DIR   = BASE_DIR / "logs"
-SEEN_FILE  = DATA_DIR / "seen_ids.txt"
+# BASE_DIR   = Path(__file__).resolve().parent.parent
+# DATA_DIR   = BASE_DIR / "data"
+# LOGS_DIR   = BASE_DIR / "logs"
+# SEEN_FILE  = DATA_DIR / "seen_ids.txt"
 
-DATA_DIR.mkdir(exist_ok=True)
-LOGS_DIR.mkdir(exist_ok=True)
+# DATA_DIR.mkdir(exist_ok=True)
+# LOGS_DIR.mkdir(exist_ok=True)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+import sys; sys.path.insert(0, str(BASE_DIR))
+from paths import RAW_DIR, BLACKLISTED_DIR, LOGS_DIR, SEEN_FILE, raw_jobs_path, blacklisted_path
+DATA_DIR = BASE_DIR / "data"
 
 # ----------------------------------------------------------------
 # LOGGING
@@ -379,7 +384,8 @@ def save_output(df: pd.DataFrame, df_filtered: pd.DataFrame) -> Path | None:
     if "description" in df_out.columns:
         df_out["description"] = df_out["description"].str[:8000]
 
-    output_path = DATA_DIR / f"raw_jobs_{today_str}.csv"
+    # output_path = DATA_DIR / f"raw_jobs_{today_str}.csv"
+    output_path = raw_jobs_path(today_str)
     df_out.to_csv(
         output_path,
         index=False,
@@ -390,7 +396,8 @@ def save_output(df: pd.DataFrame, df_filtered: pd.DataFrame) -> Path | None:
 
     # Save blacklisted jobs separately for auditing
     if not df_filtered.empty:
-        blacklist_path = DATA_DIR / f"blacklisted_{today_str}.csv"
+        # blacklist_path = DATA_DIR / f"blacklisted_{today_str}.csv"
+        blacklist_path = blacklisted_path(today_str)
         bl_cols = [c for c in ["title", "company", "location", "job_url", "_blacklist_reason"]
                    if c in df_filtered.columns]
         df_filtered[bl_cols].to_csv(blacklist_path, index=False)

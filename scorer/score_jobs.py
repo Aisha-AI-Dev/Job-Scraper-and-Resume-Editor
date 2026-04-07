@@ -46,12 +46,20 @@ load_dotenv()
 # ----------------------------------------------------------------
 # PATHS
 # ----------------------------------------------------------------
-BASE_DIR    = Path(__file__).resolve().parent.parent
-DATA_DIR    = BASE_DIR / "data"
-LOGS_DIR    = BASE_DIR / "logs"
-PROMPTS_DIR = BASE_DIR / "prompts"
+# BASE_DIR    = Path(__file__).resolve().parent.parent
+# DATA_DIR    = BASE_DIR / "data"
+# LOGS_DIR    = BASE_DIR / "logs"
+# PROMPTS_DIR = BASE_DIR / "prompts"
 
-LOGS_DIR.mkdir(exist_ok=True)
+# LOGS_DIR.mkdir(exist_ok=True)
+
+BASE_DIR    = Path(__file__).resolve().parent.parent
+import sys; sys.path.insert(0, str(BASE_DIR))
+from paths import (RAW_DIR, SCORED_DIR, LOGS_DIR,
+                   raw_jobs_path, scored_jobs_path,
+                   scored_jobs_low_path, scored_jobs_errors_path)
+DATA_DIR    = BASE_DIR / "data"
+PROMPTS_DIR = BASE_DIR / "prompts"
 
 # ----------------------------------------------------------------
 # LOGGING
@@ -511,12 +519,14 @@ def save_results(results: list[dict],
     log.info(f"Saved {len(df_high):,} scored jobs (fit >= {MIN_SCORE_THRESHOLD}) → {output_path}")
 
     if not df_low.empty:
-        low_path = output_path.parent / output_path.name.replace("scored_jobs", "scored_jobs_low")
+        # low_path = output_path.parent / output_path.name.replace("scored_jobs", "scored_jobs_low")
+        low_path = scored_jobs_low_path(output_path.stem.replace("scored_jobs_", ""))
         df_low.to_csv(low_path, index=False, quoting=csv.QUOTE_ALL)
         log.info(f"Saved {len(df_low):,} low-score jobs → {low_path}")
 
     if errors:
-        err_path = output_path.parent / output_path.name.replace("scored_jobs", "scored_jobs_errors")
+        # err_path = output_path.parent / output_path.name.replace("scored_jobs", "scored_jobs_errors")
+        err_path = scored_jobs_errors_path(output_path.stem.replace("scored_jobs_", ""))
         pd.DataFrame(errors).to_csv(err_path, index=False)
         log.info(f"Saved {len(errors):,} errors → {err_path}")
 
@@ -536,7 +546,10 @@ def main(input_path: Path | None = None,
     # 1. Resolve input file
     if input_path is None:
         date_str  = target_date or today_str
-        input_path = DATA_DIR / f"raw_jobs_{date_str}.csv"
+        # input_path = DATA_DIR / f"raw_jobs_{date_str}.csv"
+        input_path = raw_jobs_path(date_str)
+        if not input_path.exists():
+            input_path = DATA_DIR / f"raw_jobs_{date_str}.csv"  # backward compat
 
     if not input_path.exists():
         log.error(f"Input file not found: {input_path}")
@@ -593,7 +606,8 @@ def main(input_path: Path | None = None,
     results, errors = collect_batch_results(client, batch_id, df, system_blocks)
 
     # 10. Save output
-    output_path = DATA_DIR / f"scored_jobs_{today_str}.csv"
+    # output_path = DATA_DIR / f"scored_jobs_{today_str}.csv"
+    output_path = scored_jobs_path(today_str)
     save_results(results, errors, output_path)
 
     # 11. Final summary

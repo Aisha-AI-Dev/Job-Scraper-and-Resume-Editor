@@ -1,6 +1,6 @@
 # Job Application Pipeline
 
-A semi-automated job application pipeline I built while searching for ML/AI roles after my MS program at Case Western Reserve University. It handles the mechanical parts of job searching — scraping, scoring, tracking, and resume tailoring — so I can spend my time on the parts that actually need human judgment.
+A semi-automated job application pipeline I built while searching for ML/AI roles after my MS program at Case Western Reserve University. It handles the mechanical parts of job searching: scraping, scoring, tracking, and resume tailoring; so I can spend my time on the parts that actually need human judgment.
 
 **Built by [Aishani S. Patil](https://linkedin.com/in/aishani-patil) · MS Computer Science (AI), CWRU · May 2026**
 
@@ -148,11 +148,11 @@ python edit.py --company "Google" --role "ML Engineer" --jd jd.txt
 
 ## Project Background
 
-I built this in April 2026 while finishing my MS and running an active job search simultaneously. The goal was to apply to 50+ roles per day without sacrificing resume quality — which means no generic resumes, but also no spending 45 minutes per application hand-tailoring bullets.
+I built this in April 2026 while finishing my MS and running an active job search simultaneously. The goal was to apply to 50+ roles per day without sacrificing resume quality - which means no generic resumes, but also no spending 45 minutes per application hand-tailoring bullets.
 
 The pipeline handles the volume problem. I handle the quality check. Every `.docx` gets reviewed before it goes anywhere.
 
-The tailoring prompt enforces honesty guardrails — it cannot invent metrics, upgrade roles, or claim tools that aren't in the profile. It can only reframe real experience in the JD's language.
+The tailoring prompt enforces honesty guardrails, it cannot invent metrics, upgrade roles, or claim tools that aren't in the profile. It can only reframe real experience in the JD's language.
 
 ---
 

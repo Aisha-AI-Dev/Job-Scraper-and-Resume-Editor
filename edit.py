@@ -201,6 +201,18 @@ def main(
         log.info("  Review, save as PDF, submit.")
         log.info("=" * 60)
 
+    # Auto-generate outreach messages
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(BASE_DIR))
+        from outreach import generate_outreach
+        drafts = sorted(company_dir.glob(f"*{today_str}.txt"), reverse=True)
+        if drafts:
+            log.info("Generating outreach messages...")
+            generate_outreach(draft_path=drafts[0], company=company, role=role)
+    except Exception as e:
+        log.warning(f"Outreach generation failed (non-fatal): {e}")
+
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(

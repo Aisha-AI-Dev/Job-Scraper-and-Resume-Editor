@@ -57,13 +57,9 @@ load_dotenv()
 # PATHS
 # ----------------------------------------------------------------
 BASE_DIR    = Path(__file__).resolve().parent
-# DATA_DIR    = BASE_DIR / "data"
-# LOGS_DIR    = BASE_DIR / "logs"
-# LOGS_DIR.mkdir(exist_ok=True)
-
 import sys; sys.path.insert(0, str(BASE_DIR))
-from paths import RAW_DIR, LOGS_DIR, latest_raw_jobs
-DATA_DIR = BASE_DIR / "data"
+from paths import RAW_DIR, TAILORED_DIR, LOGS_DIR, latest_raw_jobs
+DATA_DIR    = BASE_DIR / "data"
 
 today_str = date.today().isoformat()
 
@@ -244,14 +240,10 @@ def find_jd_in_csv(job_url: str, company: str, role: str) -> str | None:
     Matches by job_url (most reliable) or company + title fuzzy match.
     Loads only needed columns to avoid memory pressure.
     """
-    # csv_files = sorted(
-    #     DATA_DIR.glob("raw_jobs_*.csv"),
-    #     reverse=True   # newest first
-    # )
-
-    csv_files = sorted(RAW_DIR.glob("raw_jobs_*.csv"), reverse=True)
-    if not csv_files:  # backward compat
-        csv_files = sorted(DATA_DIR.glob("raw_jobs_*.csv"), reverse=True)
+    csv_files = sorted(
+        DATA_DIR.glob("raw_jobs_*.csv"),
+        reverse=True   # newest first
+    )
 
     if not csv_files:
         log.warning("No raw_jobs CSV files found in data/")
@@ -677,6 +669,20 @@ def _apply_single(
     # Update Notion
     if page_id and not no_notion_update:
         update_notion_page(notion, page_id, docx_path.name)
+
+    # Auto-generate outreach messages
+    try:
+        from outreach import generate_outreach, find_latest_draft
+        draft_files = sorted(
+            (DATA_DIR / "tailored" / re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50])
+            .glob(f"*{today_str}.txt"),
+            reverse=True
+        )
+        if draft_files:
+            log.info("Generating outreach messages...")
+            generate_outreach(draft_path=draft_files[0], company=company, role=role)
+    except Exception as e:
+        log.warning(f"Outreach generation failed (non-fatal): {e}")
 
     return docx_path
 

@@ -2,7 +2,7 @@
 
 ## What Is This?
 
-This is a semi-automated job application pipeline built for Aishani Patil (MS CS, CWRU, May 2026). It handles the mechanical parts of job searching so you can focus on the parts that need human judgment: picking which roles to apply to and reviewing your tailored resume before submitting.
+This is a semi-automated job application pipeline built for myself (Aishani Patil (MS CS, CWRU, May 2026)). It handles the mechanical parts of job searching so you can focus on the parts that need human judgment: picking which roles to apply to and reviewing your tailored resume before submitting.
 
 **What it does automatically:**
 - Scrapes hundreds of job postings from LinkedIn, Indeed, and Glassdoor every morning

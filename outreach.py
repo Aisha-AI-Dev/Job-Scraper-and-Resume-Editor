@@ -180,6 +180,13 @@ Role: {role}
 Use the cover letter for tone reference and key talking points, but
 the LinkedIn DM and email must be distinctly shorter and more direct.
 Do not copy sentences from the cover letter verbatim.
+
+CRITICAL: Start your response IMMEDIATELY with the section header below.
+Do not write any preamble. Your response must begin with exactly:
+
+---
+LINKEDIN DM
+---
 """
 
 
@@ -283,15 +290,6 @@ def find_latest_draft(company: str, role: str) -> Path | None:
 # ----------------------------------------------------------------
 # OUTPUT PARSER
 # ----------------------------------------------------------------
-
-def parse_outreach_output(text: str) -> dict:
-    """Parse the structured outreach output from Claude."""
-    result = {
-        "linkedin_dm":    "",
-        "email_subject":  "",
-        "email_body":     "",
-        "writers_notes":  "",
-    }
 
 def parse_outreach_output(text: str) -> dict:
     """
@@ -499,18 +497,13 @@ def generate_outreach(
     )
 
     try:
-        prefill = "---\nLINKEDIN DM\n---"
         response = client.messages.create(
             model=MODEL,
             max_tokens=2000,
             system=SYSTEM_PROMPT,
-            messages=[
-                {"role": "user",      "content": user_msg},
-                {"role": "assistant", "content": prefill},
-            ],
+            messages=[{"role": "user", "content": user_msg}],
         )
-        # Prepend the prefill so the parser sees the full output
-        raw = prefill + "\n" + response.content[0].text
+        raw = response.content[0].text
         log.debug(f"Raw outreach response (first 300 chars):\n{raw[:300]}")
     except Exception as e:
         log.error(f"Claude API call failed: {e}")

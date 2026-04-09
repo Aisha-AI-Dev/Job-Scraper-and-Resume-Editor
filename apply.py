@@ -56,10 +56,27 @@ load_dotenv()
 # ----------------------------------------------------------------
 # PATHS
 # ----------------------------------------------------------------
-BASE_DIR    = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent
 import sys; sys.path.insert(0, str(BASE_DIR))
-from paths import RAW_DIR, TAILORED_DIR, LOGS_DIR, latest_raw_jobs
-DATA_DIR    = BASE_DIR / "data"
+
+try:
+    from paths import RAW_DIR, TAILORED_DIR, LOGS_DIR, latest_raw_jobs
+except ModuleNotFoundError:
+    DATA_DIR_    = BASE_DIR / "data"
+    RAW_DIR      = DATA_DIR_ / "raw"
+    TAILORED_DIR = DATA_DIR_ / "tailored"
+    LOGS_DIR     = BASE_DIR / "logs"
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    TAILORED_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def latest_raw_jobs():
+        files = sorted(RAW_DIR.glob("raw_jobs_*.csv"), reverse=True)
+        if not files:
+            files = sorted((BASE_DIR / "data").glob("raw_jobs_*.csv"), reverse=True)
+        return files[0] if files else None
+
+DATA_DIR = BASE_DIR / "data"
 
 today_str = date.today().isoformat()
 
@@ -396,13 +413,26 @@ def run_tailoring(
         tmp_jd.unlink(missing_ok=True)
 
         # Find the draft that was just written
+        # Search role subfolder first, then company dir (backward compat)
         import re as _re
         safe_company = _re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
+        safe_role    = _re.sub(r'[/\\:*?"<>|]', '', role.strip()).replace(' ', '_')[:40]
         company_dir  = DATA_DIR / "tailored" / safe_company
-        drafts = sorted(company_dir.glob(f"*{today_str}.txt"), reverse=True)
-        if drafts:
-            log.info(f"Draft written → {drafts[0]}")
-            return drafts[0]
+        role_dir     = company_dir / safe_role
+
+        draft = None
+        for search in [role_dir, company_dir]:
+            found = sorted(
+                [f for f in search.glob("*.txt") if "_OUTREACH" not in f.name],
+                reverse=True,
+            )
+            if found:
+                draft = found[0]
+                break
+
+        if draft:
+            log.info(f"Draft written → {draft}")
+            return draft
         else:
             log.error("Tailoring ran but no draft .txt found")
             return None
@@ -445,15 +475,23 @@ def run_injection(
         )
 
         # Find the docx that was just written
+        # Search role subfolder first, then company dir (backward compat)
         import re as _re
         safe_company = _re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
+        safe_role    = _re.sub(r'[/\\:*?"<>|]', '', role.strip()).replace(' ', '_')[:40]
         company_dir  = DATA_DIR / "tailored" / safe_company
-        docx_files   = sorted(
-            company_dir.glob(f"*{today_str}_RESUME.docx"), reverse=True
-        )
-        if docx_files:
-            log.info(f"Resume written → {docx_files[0]}")
-            return docx_files[0]
+        role_dir     = company_dir / safe_role
+
+        docx = None
+        for search in [role_dir, company_dir]:
+            found = sorted(search.glob("*_RESUME.docx"), reverse=True)
+            if found:
+                docx = found[0]
+                break
+
+        if docx:
+            log.info(f"Resume written → {docx}")
+            return docx
         else:
             log.error("Injection ran but no .docx found")
             return None
@@ -672,17 +710,33 @@ def _apply_single(
 
     # Auto-generate outreach messages
     try:
-        from outreach import generate_outreach, find_latest_draft
-        draft_files = sorted(
-            (DATA_DIR / "tailored" / re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50])
-            .glob(f"*{today_str}.txt"),
-            reverse=True
-        )
-        if draft_files:
-            log.info("Generating outreach messages...")
-            generate_outreach(draft_path=draft_files[0], company=company, role=role)
+        # Ensure project root is on path before importing outreach
+        import sys as _sys
+        _sys.path.insert(0, str(BASE_DIR))
+        from outreach import generate_outreach
+        safe_co     = re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
+        safe_role_o = re.sub(r'[/\\:*?"<>|]', '', role.strip()).replace(' ', '_')[:40]
+        co_dir      = DATA_DIR / "tailored" / safe_co
+        role_dir_o  = co_dir / safe_role_o
+
+        all_drafts = []
+        for d in [role_dir_o, co_dir]:
+            if d.exists():
+                all_drafts = sorted(
+                    [f for f in d.glob("*.txt") if "_OUTREACH" not in f.name],
+                    reverse=True
+                )
+                if all_drafts:
+                    break
+
+        if all_drafts:
+            log.info(f"Generating outreach from: {all_drafts[0].name}")
+            generate_outreach(draft_path=all_drafts[0], company=company, role=role)
+        else:
+            log.warning(f"No draft .txt found in {role_dir_o} — skipping outreach")
     except Exception as e:
-        log.warning(f"Outreach generation failed (non-fatal): {e}")
+        log.warning(f"Outreach generation failed: {e}")
+        import traceback; traceback.print_exc()
 
     return docx_path
 

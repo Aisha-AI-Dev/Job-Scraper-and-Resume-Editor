@@ -385,6 +385,99 @@ PROJECT_URLS: dict[str, str] = {
     # P3, P6, P7 have no links — omit intentionally
 }
 
+# GRA bullet hyperlinks — phrases to hyperlink inside GRA experience bullets
+# Key: substring to detect in the bullet (case-insensitive)
+# Value: (anchor_text, url) — the exact text to make clickable
+GRA_BULLET_LINKS: list[tuple[str, str, str]] = [
+    # (detection keyword, anchor phrase in bullet, url)
+    ("hebbian",       "Hebbian",        "https://github.com/Aisha-AI-Dev/Biologically-Plausible-Neural-Network-Training"),
+    ("fasthebb",      "FastHebb",       "https://github.com/CWRU-CSDS-451/f2025-team12"),
+    ("fastHebb",      "FastHebb",       "https://github.com/CWRU-CSDS-451/f2025-team12"),
+    ("swta",          "SWTA-FH",        "https://github.com/CWRU-CSDS-451/f2025-team12"),
+    ("contrastive",   "Contrastive Hebbian", "https://github.com/Aisha-AI-Dev/Biologically-Plausible-Neural-Network-Training"),
+    ("biologically",  "biologically",   "https://github.com/Aisha-AI-Dev/Biologically-Plausible-Neural-Network-Training"),
+]
+
+
+def add_hyperlink_to_run(para, anchor_text: str, url: str) -> bool:
+    """
+    Find `anchor_text` in the paragraph's runs and wrap it in a hyperlink.
+    Returns True if the hyperlink was added, False if anchor_text not found.
+    """
+    # Find which run contains the anchor text
+    for run in list(para.runs):
+        if anchor_text.lower() in run.text.lower():
+            idx = run.text.lower().find(anchor_text.lower())
+            actual_anchor = run.text[idx:idx + len(anchor_text)]
+            before = run.text[:idx]
+            after  = run.text[idx + len(anchor_text):]
+
+            # Add hyperlink relationship
+            r_id = para.part.relate_to(
+                url,
+                'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+                is_external=True,
+            )
+
+            # Get run's rPr for font inheritance
+            from copy import deepcopy
+            run_rpr = deepcopy(run._r.find(qn('w:rPr')))
+
+            # Remove the original run
+            run._r.getparent().remove(run._r)
+
+            # Insert: before text + hyperlink + after text
+            # We work at the XML level to insert them in the right order
+            p_elem = para._element
+
+            def make_plain_run(text, rpr):
+                r = OxmlElement('w:r')
+                if rpr is not None:
+                    r.append(deepcopy(rpr))
+                t = OxmlElement('w:t')
+                t.text = text
+                if text.startswith(' ') or text.endswith(' '):
+                    t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+                r.append(t)
+                return r
+
+            if before:
+                p_elem.append(make_plain_run(before, run_rpr))
+
+            # Hyperlink element
+            hyperlink = OxmlElement('w:hyperlink')
+            hyperlink.set('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id', r_id)
+            hyperlink.set(qn('w:history'), '1')
+            r_link = OxmlElement('w:r')
+            rpr_link = deepcopy(run_rpr) if run_rpr is not None else OxmlElement('w:rPr')
+            rStyle = OxmlElement('w:rStyle')
+            rStyle.set(qn('w:val'), 'Hyperlink')
+            rpr_link.insert(0, rStyle)
+            r_link.append(rpr_link)
+            t_link = OxmlElement('w:t')
+            t_link.text = actual_anchor
+            r_link.append(t_link)
+            hyperlink.append(r_link)
+            p_elem.append(hyperlink)
+
+            if after:
+                p_elem.append(make_plain_run(after, run_rpr))
+
+            return True
+    return False
+
+
+def apply_gra_hyperlinks(para) -> None:
+    """
+    Check a GRA bullet paragraph for known research keywords and
+    add hyperlinks to matching phrases.
+    """
+    text_lower = para.text.lower()
+    for detection_key, anchor, url in GRA_BULLET_LINKS:
+        if detection_key.lower() in text_lower:
+            add_hyperlink_to_run(para, anchor, url)
+            break  # one link per bullet is enough
+
 
 def make_project_run_with_hyperlink(para, text: str) -> None:
     """
@@ -501,11 +594,25 @@ def set_spacing_after(para, twips: int) -> None:
     spacing.set(qn('w:after'), str(twips))
 
 
+def set_contextual_spacing(p_element) -> None:
+    """
+    Add <w:contextualSpacing/> to a paragraph's pPr.
+    This tells Word not to add space between consecutive paragraphs
+    of the same style — fixes the visual gap between IBM Assoc bullets.
+    """
+    pPr = p_element.find(qn('w:pPr'))
+    if pPr is None:
+        pPr = OxmlElement('w:pPr')
+        p_element.insert(0, pPr)
+    if pPr.find(qn('w:contextualSpacing')) is None:
+        cs = OxmlElement('w:contextualSpacing')
+        pPr.append(cs)
+
+
 def expand_section(anchor_para, bullets: list[str]) -> None:
     """
     Replace anchor_para with N cloned paragraphs (one per bullet).
-    Sets spacing-after to 0 on the last paragraph so there is no
-    visual gap before the next section heading.
+    Clones the source paragraph's XML exactly, preserving all formatting.
     """
     for text in reversed(bullets):
         new_p = clone_para_with_text(anchor_para, text)
@@ -640,6 +747,19 @@ def inject(doc: Document,
                     if bullets:
                         cleaned = [clean_bullet_text(b) for b in bullets]
                         expand_section(para, cleaned)
+                        # Apply GRA hyperlinks after expanding GRA bullets
+                        if section == "gra":
+                            live_paras = list(doc.paragraphs)
+                            try:
+                                live_idx = next(
+                                    i for i, p in enumerate(live_paras)
+                                    if p.text.strip() == cleaned[0]
+                                )
+                                for j in range(len(cleaned)):
+                                    if live_idx + j < len(live_paras):
+                                        apply_gra_hyperlinks(live_paras[live_idx + j])
+                            except StopIteration:
+                                pass
                         status[section] = f"{len(bullets)} bullets"
                         log.info(f"  {tag}: {len(bullets)} bullet(s)")
                     else:
@@ -746,27 +866,24 @@ def slugify(s: str) -> str:
 
 def build_output_path(company: str, role: str) -> Path:
     """
-    Returns the output .docx path, creating a company subfolder if needed.
+    Returns the output .docx path inside company/role subfolders.
 
     Structure:
       data/tailored/
         McKinsey/
-          McKinsey_Business_Analyst_Tech_AI_2026-04-05_RESUME.docx
-        Qualcomm/
-          Qualcomm_ML_Engineer_Tools_2026-04-05_RESUME.docx
-
-    - Company folder name is the raw company string, spaces preserved,
-      truncated to 50 chars and stripped of path-unsafe characters.
-    - If the folder doesn't exist it is created automatically.
-    - Filename uses the slugified company + role + date as before.
+          Business_Analyst_Tech_AI/
+            McKinsey_Business_Analyst_Tech_AI_2026-04-06_RESUME.docx
+        DoorDash/
+          ML_Engineer/
+            DoorDash_ML_Engineer_2026-04-06_RESUME.docx
     """
-    # Safe folder name: keep spaces and caps, strip path separators
     safe_company = re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
-    company_dir  = TAILORED_DIR / safe_company
-    company_dir.mkdir(parents=True, exist_ok=True)
+    safe_role    = re.sub(r'[/\\:*?"<>|]', '', role.strip()).replace(' ', '_')[:40]
+    role_dir     = TAILORED_DIR / safe_company / safe_role
+    role_dir.mkdir(parents=True, exist_ok=True)
 
     filename = f"{slugify(company)}_{slugify(role)}_{today_str}_RESUME.docx"
-    return company_dir / filename
+    return role_dir / filename
 
 
 def open_doc(path: Path) -> None:

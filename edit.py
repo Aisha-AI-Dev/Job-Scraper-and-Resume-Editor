@@ -152,23 +152,36 @@ def main(
     finally:
         tmp_jd.unlink(missing_ok=True)
 
+    # Compute company and role dirs (used throughout)
+    safe_company = re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
+    safe_role    = re.sub(r'[/\\:*?"<>|]', '', role.strip()).replace(' ', '_')[:40]
+    company_dir  = DATA_DIR / "tailored" / safe_company
+    role_dir     = company_dir / safe_role
+
     if tailor_only:
-        safe_company = re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
-        company_dir  = DATA_DIR / "tailored" / safe_company
-        drafts = sorted(company_dir.glob(f"*{today_str}.txt"), reverse=True)
-        if drafts:
-            log.info(f"Draft → {drafts[0]}")
+        # Search role subfolder first, fall back to company dir
+        for search in [role_dir, company_dir]:
+            drafts = sorted(search.glob("*.txt"), reverse=True)
+            if drafts:
+                log.info(f"Draft → {drafts[0]}")
+                break
         log.info("Tailoring complete. Skipping injection (--tailor-only).")
         return
 
-    # 4. Find draft
-    safe_company = re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
-    company_dir  = DATA_DIR / "tailored" / safe_company
-    drafts = sorted(company_dir.glob(f"*{today_str}.txt"), reverse=True)
-    if not drafts:
-        log.error("No draft .txt found — injection cannot proceed")
+    # 4. Find draft — role subfolder first, then company dir (backward compat)
+    draft_path = None
+    for search in [role_dir, company_dir]:
+        drafts = sorted(
+            [f for f in search.glob("*.txt") if "_OUTREACH" not in f.name],
+            reverse=True,
+        )
+        if drafts:
+            draft_path = drafts[0]
+            break
+
+    if not draft_path:
+        log.error(f"No draft .txt found in {role_dir} or {company_dir} — injection cannot proceed")
         sys.exit(1)
-    draft_path = drafts[0]
     log.info(f"Draft → {draft_path.name}")
 
     # 5. Inject
@@ -192,8 +205,13 @@ def main(
         import traceback; traceback.print_exc()
         sys.exit(1)
 
-    # 6. Find output docx
-    docx_files = sorted(company_dir.glob(f"*{today_str}_RESUME.docx"), reverse=True)
+    # 6. Find output docx — role subfolder first, then company dir
+    docx_files = []
+    for search in [role_dir, company_dir]:
+        docx_files = sorted(search.glob("*_RESUME.docx"), reverse=True)
+        if docx_files:
+            break
+
     if docx_files:
         log.info("=" * 60)
         log.info("DONE")
@@ -206,12 +224,25 @@ def main(
         import sys as _sys
         _sys.path.insert(0, str(BASE_DIR))
         from outreach import generate_outreach
-        drafts = sorted(company_dir.glob(f"*{today_str}.txt"), reverse=True)
-        if drafts:
-            log.info("Generating outreach messages...")
-            generate_outreach(draft_path=drafts[0], company=company, role=role)
+
+        all_drafts = []
+        for d in [role_dir, company_dir]:
+            if d.exists():
+                all_drafts = sorted(
+                    [f for f in d.glob("*.txt") if "_OUTREACH" not in f.name],
+                    reverse=True,
+                )
+                if all_drafts:
+                    break
+
+        if all_drafts:
+            log.info(f"Generating outreach from: {all_drafts[0].name}")
+            generate_outreach(draft_path=all_drafts[0], company=company, role=role)
+        else:
+            log.warning("No draft .txt found — skipping outreach")
     except Exception as e:
-        log.warning(f"Outreach generation failed (non-fatal): {e}")
+        log.warning(f"Outreach generation failed: {e}")
+        import traceback; traceback.print_exc()
 
 
 if __name__ == "__main__":

@@ -84,7 +84,7 @@ log = logging.getLogger(__name__)
 # CONFIG
 # ----------------------------------------------------------------
 MODEL      = "claude-sonnet-4-6"   # Sonnet for quality — this goes to real apps
-MAX_TOKENS = 2048                  # tailoring output can be detailed
+MAX_TOKENS = 6000                  # tailoring + cover letter; ATS audit adds ~1000 tokens
 MAX_RETRIES      = 3
 RETRY_BASE_DELAY = 2.0
 
@@ -225,8 +225,8 @@ def build_cover_letter_message(
 
 def build_output_filename(company: str, role: str) -> Path:
     """
-    Generate output path: data/tailored/CompanyName/Company_Role_DATE.txt
-    Creates the company subfolder if it doesn't exist.
+    Generate output path: data/tailored/CompanyName/Role_Name/Company_Role_DATE.txt
+    Creates company and role subfolders if they don't exist.
     """
     import re as _re
 
@@ -240,13 +240,13 @@ def build_output_filename(company: str, role: str) -> Path:
              .replace(",", "")
         )[:40]
 
-    # Company folder: human-readable name, path-safe
     safe_company = _re.sub(r'[/\\:*?"<>|]', '', company.strip())[:50]
-    company_dir  = TAILORED_DIR / safe_company
-    company_dir.mkdir(parents=True, exist_ok=True)
+    safe_role    = _re.sub(r'[/\\:*?"<>|]', '', role.strip()).replace(' ', '_')[:40]
+    role_dir     = TAILORED_DIR / safe_company / safe_role
+    role_dir.mkdir(parents=True, exist_ok=True)
 
     filename = f"{slugify(company)}_{slugify(role)}_{today_str}.txt"
-    return company_dir / filename
+    return role_dir / filename
 
 
 def write_output(

@@ -45,7 +45,14 @@ load_dotenv()
 # ----------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
-from paths import LOGS_DIR, RAW_DIR
+
+try:
+    from paths import LOGS_DIR, RAW_DIR
+except ModuleNotFoundError:
+    LOGS_DIR = BASE_DIR / "logs"
+    RAW_DIR  = BASE_DIR / "data" / "raw"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 today_str = date.today().isoformat()
 

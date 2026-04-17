@@ -348,6 +348,7 @@ def load_jd_from_file(jd_path: Path) -> str | None:
     return text
 
 
+def fetch_jd_from_url(job_url: str) -> str | None:
     """
     Fallback: fetch JD text directly from the job URL.
     Uses a simple requests call — works for most job boards.

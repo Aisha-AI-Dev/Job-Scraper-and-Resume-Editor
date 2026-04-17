@@ -117,6 +117,7 @@ PROPERTY_MAP = {
     "site":                  "Site",
     "date_posted":           "Date posted",
     "scored_at":             "Scored at",
+    "description":           "Description",
 }
 
 

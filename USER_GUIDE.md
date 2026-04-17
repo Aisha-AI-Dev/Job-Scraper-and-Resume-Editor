@@ -429,7 +429,7 @@ python run_daily.py --skip-scrape            # score + push existing CSV
 python apply.py --batch                      # process all queued Notion rows
 python apply.py --batch --limit 10           # first 10 only
 python apply.py --notion "https://..."       # single Notion job
-python edit.py --company X --role Y          # external JD, paste interactively
+python edit.py --company X --role Y          # external JD, paste the JD interactively in the terminal
 python edit.py --company X --role Y --jd f   # external JD from file
 
 # ── Adding jobs manually ───────────────────────────────────────
